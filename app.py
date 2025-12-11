@@ -649,7 +649,7 @@ def migrate_database():
     
     try:
         # Try to add created_at column to user table if it doesn't exist
-        db.session.execute(db.text('ALTER TABLE user ADD COLUMN created_at DATETIME'))
+        db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN created_at TIMESTAMP'))
         db.session.commit()
         print("SUCCESS: Added created_at column to user table")
     except Exception as e:
@@ -665,7 +665,7 @@ def migrate_database():
     
     try:
         # Try to add deleted_at column to user table if it doesn't exist
-        db.session.execute(db.text('ALTER TABLE user ADD COLUMN deleted_at DATETIME'))
+        db.session.execute(db.text('ALTER TABLE "user" ADD COLUMN deleted_at TIMESTAMP'))
         db.session.commit()
         print("SUCCESS: Added deleted_at column to user table")
     except Exception as e:
