@@ -1397,6 +1397,8 @@ def validate_fingerprint():
                             })
                     except Exception:
                         pass
+            except Exception:
+                pass  # If database query fails, continue with empty list
             
             # Always return debug info (not just in DEBUG mode) for production troubleshooting
             debug_info = {
