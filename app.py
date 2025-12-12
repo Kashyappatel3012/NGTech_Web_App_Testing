@@ -229,7 +229,20 @@ if database_url:
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-    print("✅ Using PostgreSQL database (Production mode)")
+    
+    # PostgreSQL connection pooling and SSL configuration for production stability
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 10,  # Number of connections to maintain
+        'max_overflow': 20,  # Maximum number of connections beyond pool_size
+        'pool_pre_ping': True,  # Verify connections before using (handles stale connections)
+        'pool_recycle': 3600,  # Recycle connections after 1 hour
+        'connect_args': {
+            'sslmode': 'require',  # Require SSL for secure connections
+            'connect_timeout': 10,  # Connection timeout in seconds
+            'application_name': 'ngtech_web_app'
+        }
+    }
+    print("✅ Using PostgreSQL database (Production mode) with connection pooling")
 else:
     # Development: Use SQLite
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'db.sqlite')
@@ -537,6 +550,72 @@ def _decrypt_fingerprint_for_api(encrypted_fingerprint):
         # If decryption fails, return as-is (for backward compatibility)
         return encrypted_fingerprint
 
+def execute_db_query_with_retry(query_func, max_retries=3, retry_delay=0.5):
+    """
+    Execute a database query with retry logic for handling transient connection errors.
+    
+    Args:
+        query_func: A callable that executes the database query
+        max_retries: Maximum number of retry attempts (default: 3)
+        retry_delay: Delay between retries in seconds (default: 0.5)
+    
+    Returns:
+        The result of the query function
+    
+    Raises:
+        The last exception if all retries fail
+    """
+    import time
+    from sqlalchemy.exc import OperationalError, DisconnectionError
+    
+    last_exception = None
+    for attempt in range(max_retries):
+        try:
+            # Try to execute the query
+            result = query_func()
+            return result
+        except (OperationalError, DisconnectionError) as e:
+            last_exception = e
+            error_str = str(e).lower()
+            
+            # Check if it's a transient SSL/connection error
+            if any(keyword in error_str for keyword in ['ssl', 'connection', 'decryption', 'bad record mac', 'server closed']):
+                if attempt < max_retries - 1:
+                    # Log the retry attempt
+                    try:
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"Database connection error (attempt {attempt + 1}/{max_retries}): {str(e)[:100]}. Retrying...")
+                    except:
+                        pass
+                    
+                    # Wait before retrying
+                    time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                    
+                    # Try to refresh the database connection
+                    try:
+                        db.session.rollback()
+                        db.session.close()
+                    except:
+                        pass
+                    
+                    continue
+                else:
+                    # Last attempt failed
+                    try:
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Database connection failed after {max_retries} attempts: {str(e)[:200]}")
+                    except:
+                        pass
+            else:
+                # Not a transient error, re-raise immediately
+                raise
+        except Exception as e:
+            # For other exceptions, re-raise immediately
+            raise
+    
+    # If we get here, all retries failed
+    raise last_exception
+
 def validate_browser_fingerprint(browser_fingerprint, user=None):
     """
     Validate browser fingerprint against user's stored fingerprint.
@@ -563,7 +642,18 @@ def validate_browser_fingerprint(browser_fingerprint, user=None):
     
     # If user is provided, check if fingerprint matches that user
     if user:
-        employee_data = EmployeeData.query.filter_by(user_id=user.id).first()
+        try:
+            employee_data = execute_db_query_with_retry(
+                lambda: EmployeeData.query.filter_by(user_id=user.id).first()
+            )
+        except Exception as e:
+            try:
+                logger = logging.getLogger(__name__)
+                logger.error(f"Database error while checking fingerprint for user {user.id}: {str(e)[:200]}")
+            except:
+                pass
+            return False, user
+        
         if not employee_data or not employee_data.browser_fingerprint:
             return False, user
         
@@ -603,7 +693,19 @@ def validate_browser_fingerprint(browser_fingerprint, user=None):
     
     # If user is None, check if fingerprint exists for any user
     # Need to check all fingerprints (can't query encrypted data directly)
-    all_employee_data = EmployeeData.query.filter(EmployeeData.browser_fingerprint.isnot(None)).all()
+    try:
+        all_employee_data = execute_db_query_with_retry(
+            lambda: EmployeeData.query.filter(EmployeeData.browser_fingerprint.isnot(None)).all()
+        )
+    except Exception as e:
+        # If database query fails, log the error and return False
+        try:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Database error while querying fingerprints: {str(e)[:200]}")
+            logger.warning("No matching fingerprint found. Checked 0 stored fingerprints (database error).")
+        except:
+            pass
+        return False, None
     
     # Log for debugging in production
     try:
@@ -640,7 +742,18 @@ def validate_browser_fingerprint(browser_fingerprint, user=None):
             pass
         
         if stored_fingerprint == browser_fp_clean:
-            user_found = db.session.get(User, emp_data.user_id)  # Use Session.get() instead of Query.get()
+            try:
+                user_found = execute_db_query_with_retry(
+                    lambda: db.session.get(User, emp_data.user_id)
+                )
+            except Exception as e:
+                try:
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Database error while getting user {emp_data.user_id}: {str(e)[:200]}")
+                except:
+                    pass
+                user_found = None
+            
             try:
                 logger = logging.getLogger(__name__)
                 logger.info(f"Fingerprint match found for user: {user_found.username if user_found else 'Unknown'}")
@@ -1203,7 +1316,18 @@ def validate_fingerprint():
             logger.info(f"validate_fingerprint: Validating fingerprint: {browser_fingerprint[:16]}...")
         except:
             pass
-        is_valid, user_found = validate_browser_fingerprint(browser_fingerprint)
+        
+        try:
+            is_valid, user_found = validate_browser_fingerprint(browser_fingerprint)
+        except Exception as e:
+            # Handle database errors gracefully
+            try:
+                logger = logging.getLogger(__name__)
+                logger.error(f"validate_fingerprint: Database error during validation: {str(e)[:200]}")
+            except:
+                pass
+            # Return invalid on database error (fail secure)
+            return jsonify({'valid': False, 'error': 'Database connection error. Please try again.'}), 500
         
         if is_valid:
             try:
@@ -1230,30 +1354,49 @@ def validate_fingerprint():
             session['fingerprint_validation_attempted'] = True
             
             # Debug: Check what's stored for HR Manager and log for debugging
-            hr_user = User.query.filter_by(username='hr_user').first() or User.query.filter_by(department='HR').first()
+            try:
+                hr_user = execute_db_query_with_retry(
+                    lambda: User.query.filter_by(username='hr_user').first() or User.query.filter_by(department='HR').first()
+                )
+            except Exception:
+                hr_user = None
+            
             hr_stored = None
             all_fingerprints_info = []
             if hr_user:
-                emp_data = EmployeeData.query.filter_by(user_id=hr_user.id).first()
-                if emp_data and emp_data.browser_fingerprint:
-                    hr_stored = emp_data.browser_fingerprint.strip()
-                    try:
-                        logger = logging.getLogger(__name__)
-                        logger.warning(f"validate_fingerprint: HR Manager stored: {hr_stored} (len={len(hr_stored)})")
-                    except:
-                        pass
+                try:
+                    emp_data = execute_db_query_with_retry(
+                        lambda: EmployeeData.query.filter_by(user_id=hr_user.id).first()
+                    )
+                    if emp_data and emp_data.browser_fingerprint:
+                        hr_stored = emp_data.browser_fingerprint.strip()
+                        try:
+                            logger = logging.getLogger(__name__)
+                            logger.warning(f"validate_fingerprint: HR Manager stored: {hr_stored} (len={len(hr_stored)})")
+                        except:
+                            pass
+                except Exception:
+                    pass
             
             # Get all stored fingerprints for debugging
-            all_employees = EmployeeData.query.filter(EmployeeData.browser_fingerprint.isnot(None)).all()
-            for emp in all_employees:
-                user = db.session.get(User, emp.user_id)
-                if user:
-                    stored_fp = emp.browser_fingerprint.strip() if emp.browser_fingerprint else ''
-                    all_fingerprints_info.append({
-                        'username': user.username,
-                        'fingerprint': stored_fp[:16] + '...' if len(stored_fp) > 16 else stored_fp,
-                        'length': len(stored_fp)
-                    })
+            try:
+                all_employees = execute_db_query_with_retry(
+                    lambda: EmployeeData.query.filter(EmployeeData.browser_fingerprint.isnot(None)).all()
+                )
+                for emp in all_employees:
+                    try:
+                        user = execute_db_query_with_retry(
+                            lambda: db.session.get(User, emp.user_id)
+                        )
+                        if user:
+                            stored_fp = emp.browser_fingerprint.strip() if emp.browser_fingerprint else ''
+                            all_fingerprints_info.append({
+                                'username': user.username,
+                                'fingerprint': stored_fp[:16] + '...' if len(stored_fp) > 16 else stored_fp,
+                                'length': len(stored_fp)
+                            })
+                    except Exception:
+                        pass
             
             # Always return debug info (not just in DEBUG mode) for production troubleshooting
             debug_info = {
@@ -1328,17 +1471,28 @@ def debug_fingerprint():
                 hr_stored = emp_data.browser_fingerprint
         
         # Get all users with fingerprints
-        all_employees = EmployeeData.query.filter(EmployeeData.browser_fingerprint.isnot(None)).all()
+        try:
+            all_employees = execute_db_query_with_retry(
+                lambda: EmployeeData.query.filter(EmployeeData.browser_fingerprint.isnot(None)).all()
+            )
+        except Exception:
+            all_employees = []
+        
         fingerprints_info = []
         for emp in all_employees:
-            user = User.query.get(emp.user_id)
-            if user:
-                fingerprints_info.append({
-                    'username': user.username,
-                    'name': user.employee_name,
-                    'department': user.department,
-                    'fingerprint': emp.browser_fingerprint
-                })
+            try:
+                user = execute_db_query_with_retry(
+                    lambda: User.query.get(emp.user_id)
+                )
+                if user:
+                    fingerprints_info.append({
+                        'username': user.username,
+                        'name': user.employee_name,
+                        'department': user.department,
+                        'fingerprint': emp.browser_fingerprint
+                    })
+            except Exception:
+                pass
         
         return f"""
         <html>
