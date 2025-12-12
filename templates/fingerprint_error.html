@@ -239,95 +239,42 @@ Don’t miss any critical security alerts. Join now!
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     
     <script>
-        // Browser Fingerprinting Function (same as login page)
+        // Browser Fingerprinting Function - Simplified and Stable
+        // Only uses stable components that don't change between HTTP/HTTPS or domains
+        // Removed: Canvas, WebGL, Audio (these vary by domain/HTTPS)
         function getBrowserFingerprint() {
             const components = [];
             
-            // User Agent
+            // User Agent (stable across domains)
             components.push(navigator.userAgent || '');
             
-            // Screen Resolution
+            // Screen Resolution (stable)
             components.push(`${screen.width}x${screen.height}x${screen.colorDepth}`);
             
-            // Timezone
+            // Timezone (stable)
             components.push(Intl.DateTimeFormat().resolvedOptions().timeZone || '');
             components.push(new Date().getTimezoneOffset().toString());
             
-            // Language
+            // Language (stable)
             components.push(navigator.language || '');
             components.push((navigator.languages || []).join(','));
             
-            // Platform
+            // Platform (stable)
             components.push(navigator.platform || '');
             
-            // Hardware Concurrency
+            // Hardware Concurrency (stable)
             components.push(navigator.hardwareConcurrency?.toString() || '');
             
-            // Device Memory (if available)
+            // Device Memory (if available, stable)
             components.push(navigator.deviceMemory?.toString() || '');
             
-            // Canvas Fingerprint
-            try {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                canvas.width = 200;
-                canvas.height = 50;
-                ctx.textBaseline = 'top';
-                ctx.font = '14px Arial';
-                ctx.textBaseline = 'alphabetic';
-                ctx.fillStyle = '#f60';
-                ctx.fillRect(125, 1, 62, 20);
-                ctx.fillStyle = '#069';
-                ctx.fillText('Browser fingerprint', 2, 15);
-                ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
-                ctx.fillText('Browser fingerprint', 4, 17);
-                components.push(canvas.toDataURL());
-            } catch (e) {
-                components.push('canvas-error');
-            }
-            
-            // WebGL Fingerprint
-            try {
-                const gl = document.createElement('canvas').getContext('webgl') || 
-                          document.createElement('canvas').getContext('experimental-webgl');
-                if (gl) {
-                    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-                    if (debugInfo) {
-                        components.push(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL));
-                        components.push(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL));
-                    }
-                }
-            } catch (e) {
-                components.push('webgl-error');
-            }
-            
-            // Audio Context Fingerprint
-            try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const analyser = audioContext.createAnalyser();
-                const gainNode = audioContext.createGain();
-                const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-                
-                gainNode.gain.value = 0;
-                oscillator.connect(analyser);
-                analyser.connect(scriptProcessor);
-                scriptProcessor.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                oscillator.start(0);
-                
-                const fingerprint = analyser.frequencyData.length.toString();
-                oscillator.stop();
-                audioContext.close();
-                components.push(fingerprint);
-            } catch (e) {
-                components.push('audio-error');
-            }
+            // Max Touch Points (stable)
+            components.push(navigator.maxTouchPoints?.toString() || '');
             
             // Combine all components and create hash
             const fingerprintString = components.join('|');
             
-            // Generate MD5 hash (same as main application for consistency)
+            // Generate MD5 hash (32 characters, stable across HTTP/HTTPS)
             if (typeof CryptoJS !== 'undefined') {
                 return CryptoJS.MD5(fingerprintString).toString();
             } else {

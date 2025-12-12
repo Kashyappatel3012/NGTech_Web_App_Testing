@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Fingerprint Generator | NGTech</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .fingerprint-display {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .fingerprint-display h2 {
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            opacity: 0.9;
+        }
+        
+        .fingerprint-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px 20px;
+            border-radius: 10px;
+            word-break: break-all;
+            margin-bottom: 15px;
+        }
+        
+        .copy-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        .copy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .copy-btn:active {
+            transform: translateY(0);
+        }
+        
+        .info-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .info-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .info-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+            text-align: right;
+            max-width: 60%;
+            word-break: break-all;
+        }
+        
+        .note-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        
+        .note-box h4 {
+            color: #856404;
+            margin-bottom: 8px;
+        }
+        
+        .note-box p {
+            color: #856404;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .back-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        
+        .back-link a:hover {
+            color: #764ba2;
+        }
+        
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 5px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .success-message.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-fingerprint"></i> Browser Fingerprint Generator</h1>
+            <p>Generate your stable browser fingerprint</p>
+        </div>
+        
+        <div class="fingerprint-display">
+            <h2>Your Browser Fingerprint</h2>
+            <div class="fingerprint-value" id="fingerprintValue">Generating...</div>
+            <button class="copy-btn" onclick="copyFingerprint()">
+                <i class="fas fa-copy"></i> Copy Fingerprint
+            </button>
+            <div class="success-message" id="successMessage">
+                <i class="fas fa-check-circle"></i> Fingerprint copied to clipboard!
+            </div>
+        </div>
+        
+        <div class="info-section">
+            <h3><i class="fas fa-info-circle"></i> Fingerprint Components</h3>
+            <div class="info-item">
+                <span class="info-label">User Agent:</span>
+                <span class="info-value" id="userAgent">-</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Screen Resolution:</span>
+                <span class="info-value" id="screenRes">-</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Timezone:</span>
+                <span class="info-value" id="timezone">-</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Language:</span>
+                <span class="info-value" id="language">-</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Platform:</span>
+                <span class="info-value" id="platform">-</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Hardware Concurrency:</span>
+                <span class="info-value" id="hardwareConcurrency">-</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Device Memory:</span>
+                <span class="info-value" id="deviceMemory">-</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Max Touch Points:</span>
+                <span class="info-value" id="maxTouchPoints">-</span>
+            </div>
+        </div>
+        
+        <div class="note-box">
+            <h4><i class="fas fa-lightbulb"></i> About This Fingerprint</h4>
+            <p>
+                This fingerprint is generated using only stable browser properties that don't change between HTTP/HTTPS or different domains. 
+                It excludes Canvas, WebGL, and Audio fingerprints which can vary. The fingerprint will only change when you:
+                <br>• Change your browser or browser version
+                <br>• Change your screen resolution
+                <br>• Change your system timezone
+                <br>• Change your system language settings
+            </p>
+        </div>
+        
+        <div class="back-link">
+            <a href="/login"><i class="fas fa-arrow-left"></i> Back to Login</a>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script>
+        // Browser Fingerprinting - Simplified and Stable
+        // Only uses stable components that don't change between HTTP/HTTPS or domains
+        // Removed: Canvas, WebGL, Audio (these vary by domain/HTTPS)
+        function getBrowserFingerprint() {
+            const components = [];
+            
+            // User Agent (stable across domains)
+            const userAgent = navigator.userAgent || '';
+            components.push(userAgent);
+            document.getElementById('userAgent').textContent = userAgent.substring(0, 80) + (userAgent.length > 80 ? '...' : '');
+            
+            // Screen Resolution (stable)
+            const screenRes = `${screen.width}x${screen.height}x${screen.colorDepth}`;
+            components.push(screenRes);
+            document.getElementById('screenRes').textContent = screenRes;
+            
+            // Timezone (stable)
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+            const timezoneOffset = new Date().getTimezoneOffset().toString();
+            components.push(timezone);
+            components.push(timezoneOffset);
+            document.getElementById('timezone').textContent = `${timezone} (Offset: ${timezoneOffset})`;
+            
+            // Language (stable)
+            const language = navigator.language || '';
+            const languages = (navigator.languages || []).join(',');
+            components.push(language);
+            components.push(languages);
+            document.getElementById('language').textContent = `${language} [${languages}]`;
+            
+            // Platform (stable)
+            const platform = navigator.platform || '';
+            components.push(platform);
+            document.getElementById('platform').textContent = platform;
+            
+            // Hardware Concurrency (stable)
+            const hardwareConcurrency = navigator.hardwareConcurrency?.toString() || 'N/A';
+            components.push(hardwareConcurrency);
+            document.getElementById('hardwareConcurrency').textContent = hardwareConcurrency;
+            
+            // Device Memory (if available, stable)
+            const deviceMemory = navigator.deviceMemory?.toString() || 'N/A';
+            components.push(deviceMemory);
+            document.getElementById('deviceMemory').textContent = deviceMemory + (deviceMemory !== 'N/A' ? ' GB' : '');
+            
+            // Max Touch Points (stable)
+            const maxTouchPoints = navigator.maxTouchPoints?.toString() || '0';
+            components.push(maxTouchPoints);
+            document.getElementById('maxTouchPoints').textContent = maxTouchPoints;
+            
+            // Combine all components and create hash
+            const fingerprintString = components.join('|');
+            
+            // Generate MD5 hash (32 characters, stable across HTTP/HTTPS)
+            if (typeof CryptoJS !== 'undefined') {
+                return CryptoJS.MD5(fingerprintString).toString();
+            } else {
+                // Fallback: simple hash if CryptoJS is not available
+                let hash = 0;
+                for (let i = 0; i < fingerprintString.length; i++) {
+                    const char = fingerprintString.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash; // Convert to 32bit integer
+                }
+                return Math.abs(hash).toString(16).padStart(32, '0');
+            }
+        }
+        
+        // Generate and display fingerprint
+        function generateFingerprint() {
+            const fingerprint = getBrowserFingerprint();
+            document.getElementById('fingerprintValue').textContent = fingerprint;
+        }
+        
+        // Copy fingerprint to clipboard
+        function copyFingerprint() {
+            const fingerprint = document.getElementById('fingerprintValue').textContent;
+            navigator.clipboard.writeText(fingerprint).then(() => {
+                const successMsg = document.getElementById('successMessage');
+                successMsg.classList.add('show');
+                setTimeout(() => {
+                    successMsg.classList.remove('show');
+                }, 2000);
+            }).catch(err => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = fingerprint;
+                textArea.style.position = 'fixed';
+                textArea.style.opacity = '0';
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const successMsg = document.getElementById('successMessage');
+                    successMsg.classList.add('show');
+                    setTimeout(() => {
+                        successMsg.classList.remove('show');
+                    }, 2000);
+                } catch (err) {
+                    alert('Failed to copy fingerprint. Please copy manually.');
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+        
+        // Generate fingerprint on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', generateFingerprint);
+        } else {
+            generateFingerprint();
+        }
+    </script>
+</body>
+</html>
+

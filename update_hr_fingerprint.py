@@ -111,7 +111,7 @@ def update_hr_manager_fingerprint(new_fingerprint):
 
 if __name__ == '__main__':
     # Set the fingerprint to the specified value
-    new_fingerprint = "6fc7c55b2ee9afd4dd8e9454b3a93ca6"
+    new_fingerprint = "396520d70ea1f79dd21caffd85085795"
     print("=" * 60)
     print("HR Manager Browser Fingerprint Update Script")
     print("=" * 60)

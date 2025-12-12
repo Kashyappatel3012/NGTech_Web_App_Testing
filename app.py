@@ -1163,6 +1163,11 @@ def fingerprint_error():
     """Custom error page for browser fingerprint mismatch"""
     return render_template('fingerprint_error.html')
 
+@app.route('/generate_fingerprint')
+def generate_fingerprint():
+    """Page to generate and display browser fingerprint"""
+    return render_template('generate_fingerprint.html')
+
 @app.route('/submit_complaint', methods=['POST'])
 @login_required
 def submit_complaint():
